@@ -1,28 +1,33 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+extern crate actix;
+extern crate actix_web;
+#[macro_use]
+extern crate diesel;
+extern crate r2d2;
+extern crate serde_derive;
+extern crate serde;
+#[macro_use]
+extern crate lazy_static;
+extern crate config;
 
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
+use actix_web::{HttpServer, App, middleware};
+use actix_web::web::Data;
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
-}
+pub mod app;
+pub mod schema;
 
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
-}
+#[actix_rt::main]
+async fn main() -> std::result::Result<(), std::io::Error> {
+    let listen_address: String = app::config::get("listen_address");
+    let db_pool = Data::new(crate::app::db::get_connection_pool());
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    println!("Listening to requests at {}...", listen_address);
+    HttpServer::new(move || {
         App::new()
-            .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
+            .app_data(db_pool.clone())
+            .configure(app::init::initialize)
+            .wrap(middleware::Logger::default())
     })
-        .bind(("127.0.0.1", 8081))?
+        .bind(listen_address)?
         .run()
         .await
 }
