@@ -14,6 +14,14 @@ table! {
 }
 
 table! {
+    tweets (id) {
+        id -> Int4,
+        message -> Varchar,
+        created_at -> Timestamp,
+    }
+}
+
+table! {
     types (id) {
         id -> Int4,
         name -> Varchar,
@@ -38,6 +46,7 @@ joinable!(medias -> users (fk_user_id));
 
 allow_tables_to_appear_in_same_query!(
     medias,
+    tweets,
     types,
     users,
 );

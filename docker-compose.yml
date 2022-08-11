@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  pg:
+    image: postgres:14.2-alpine
+    container_name: api_media_db
+    restart: always
+    environment:
+      POSTGRES_USER: custom_user
+      POSTGRES_PASSWORD: supersecret_password
+    ports:
+      - '15432:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
+volumes:
+  db:
+    driver: local

@@ -1,33 +1,43 @@
-extern crate actix;
-extern crate actix_web;
 #[macro_use]
 extern crate diesel;
-extern crate r2d2;
-extern crate serde_derive;
-extern crate serde;
-#[macro_use]
-extern crate lazy_static;
-extern crate config;
 
-use actix_web::{HttpServer, App, middleware};
+use actix_web::{App, HttpServer, middleware, web};
 use actix_web::web::Data;
+use diesel::prelude::*;
+use diesel::r2d2::{self, ConnectionManager};
 
-pub mod app;
-pub mod schema;
+// We define a custom type for connection pool to use later.
+pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
-#[actix_rt::main]
-async fn main() -> std::result::Result<(), std::io::Error> {
-    let listen_address: String = app::config::get("listen_address");
-    let db_pool = Data::new(crate::app::db::get_connection_pool());
+mod handlers;
+mod models;
+mod schema;
 
-    println!("Listening to requests at {}...", listen_address);
+#[actix_web::main] // or #[tokio::main]
+async fn main() -> std::io::Result<()> {
+    // Loading .env into environment variable.
+    dotenv::dotenv().ok();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    // set up database connection pool
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let manager = ConnectionManager::<PgConnection>::new(database_url);
+    let pool: DbPool = r2d2::Pool::builder()
+        .build(manager)
+        .expect("Failed to create pool.");
+
     HttpServer::new(move || {
         App::new()
-            .app_data(db_pool.clone())
-            .configure(app::init::initialize)
+            .app_data(Data::new(pool.clone()))
             .wrap(middleware::Logger::default())
+            .route("/", web::get().to(|| async { "Actix REST API" }))
+            .service(handlers::tweets::index)
+            .service(handlers::tweets::create)
+            .service(handlers::tweets::show)
+            .service(handlers::tweets::update)
+            .service(handlers::tweets::destroy)
     })
-        .bind(listen_address)?
+        .bind(("127.0.0.1", 9000))?
         .run()
         .await
 }
